@@ -1,7 +1,7 @@
 use std::{collections::HashMap, net::IpAddr, os::fd::BorrowedFd, sync::Once};
 
 use ipnet::IpNet;
-use log::{debug, error};
+use log::{debug, warn, error};
 use netlink_packet_route::link::{
     BridgeVlanInfoFlags, InfoBridge, InfoData, InfoKind, InfoVeth, LinkAttribute, LinkInfo,
     LinkMessage,
@@ -661,7 +661,10 @@ fn create_interfaces(
                     "/proc/sys/net/ipv4/conf/{}/rp_filter",
                     &data.bridge_interface_name
                 );
-                CoreUtils::apply_sysctl_value(br_rp_filter, "2")?;
+                match CoreUtils::apply_sysctl_value(br_rp_filter, "2") {
+                    Ok(_) => {}
+                    Err(e) => warn!("Failed to disable reverse path search validation: {}", e),
+                };
 
                 let link = host
                     .get_link(netlink::LinkID::Name(
@@ -799,14 +802,20 @@ fn create_veth_pair<'fd>(
                 "/proc/sys/net/ipv4/conf/{}/arp_notify",
                 &data.container_interface_name
             );
-            core_utils::CoreUtils::apply_sysctl_value(enable_arp_notify, "1")?;
+            match core_utils::CoreUtils::apply_sysctl_value(enable_arp_notify, "1") {
+                Ok(_) => {}
+                Err(e) => warn!("Failed to enable change ARP notify mode: {}", e),
+            };
 
             // disable strict reverse path search validation
             let rp_filter = format!(
                 "/proc/sys/net/ipv4/conf/{}/rp_filter",
                 &data.container_interface_name
             );
-            CoreUtils::apply_sysctl_value(rp_filter, "2")?;
+            match core_utils::CoreUtils::apply_sysctl_value(rp_filter, "2") {
+                Ok(_) => {}
+                Err(e) => warn!("Failed to disable reverse path search validation: {}", e),
+            };
             Ok::<(), NetavarkError>(())
         });
         // check the result and return error
