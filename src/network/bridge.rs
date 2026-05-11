@@ -23,7 +23,7 @@ use crate::{
     network::{constants, sysctl::disable_ipv6_autoconf, types},
 };
 use ipnet::IpNet;
-use log::{debug, error};
+use log::{debug, warn, error};
 use netlink_packet_route::link::{
     BridgeVlanInfoFlags, InfoBridge, InfoData, InfoKind, InfoVeth, LinkAttribute, LinkInfo,
     LinkMessage,
@@ -941,11 +941,17 @@ fn create_veth_pair<'fd>(
                 "net/ipv4/conf/{}/arp_notify",
                 &data.container_interface_name
             );
-            sysctl::apply_sysctl_value(enable_arp_notify, "1")?;
+            match sysctl::apply_sysctl_value(enable_arp_notify, "1") {
+                Ok(_) => {}
+                Err(e) => warn!("Failed to enable ARP notifications: {}", e),
+            };
 
             // disable strict reverse path search validation
             let rp_filter = format!("net/ipv4/conf/{}/rp_filter", &data.container_interface_name);
-            sysctl::apply_sysctl_value(rp_filter, "2")?;
+            match sysctl::apply_sysctl_value(rp_filter, "2") {
+                Ok(_) => {}
+                Err(e) => warn!("Failed to switch reverse path validation into loose mode: {}", e),
+            };
             Ok::<(), NetavarkError>(())
         })?;
 
